@@ -3,6 +3,18 @@
 # Append custom CMake modules.
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
+# Convenience function to get similar behaviour as CMAKE_DEPENDENT_OPTION
+# for non boolean variables.
+# Will mark "target" as advanced (hidden by default in most tools) unless
+# "dependency" is defined and not equal to "".
+function(mark_as_dependent target dependency)
+    if (${dependency})
+        mark_as_advanced(CLEAR ${target})
+    elseif (NOT ${dependency})
+        mark_as_advanced(FORCE ${target})
+    endif()
+endfunction(mark_as_dependent)
+
 # Disallow out-of-source-builds.
 include(DisallowOutOfSourceBuilds)
 
@@ -36,14 +48,14 @@ include(Bluetooth)
 # Setup platform dependant variables.
 include(Platforms)
 
-# Setup ESP variables.
-include(ESP)
-
 # Setup Comms variables.
 include(Comms)
 
 # Setup PCC variables.
 include(PCC)
+
+# Setup MCC variables.
+include(MCC)
 
 # Setup android variables.
 include(Android)

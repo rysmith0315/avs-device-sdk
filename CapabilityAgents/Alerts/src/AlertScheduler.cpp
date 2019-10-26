@@ -92,9 +92,8 @@ bool AlertScheduler::initialize(std::shared_ptr<AlertObserverInterface> observer
 
     for (auto& alert : alerts) {
         if (alert->isPastDue(unixEpochNow, m_alertPastDueTimeLimit)) {
-            std::string alertToken = alert->getToken();
-            notifyObserver(alertToken, alert->getTypeName(), AlertObserverInterface::State::PAST_DUE);
-            m_alertStorage->erase(alert);
+            notifyObserver(alert->getToken(), alert->getTypeName(), AlertObserverInterface::State::PAST_DUE);
+            eraseAlert(alert);
         } else {
             // if it was active when the system last powered down, then re-init the state to set
             if (Alert::State::ACTIVE == alert->getState()) {
@@ -116,7 +115,7 @@ bool AlertScheduler::initialize(std::shared_ptr<AlertObserverInterface> observer
 }
 
 bool AlertScheduler::scheduleAlert(std::shared_ptr<Alert> alert) {
-    ACSDK_DEBUG9(LX("scheduleAlert"));
+    ACSDK_DEBUG9(LX("scheduleAlert").d("token", alert->getToken()));
     int64_t unixEpochNow = 0;
     if (!m_timeUtils.getCurrentUnixTime(&unixEpochNow)) {
         ACSDK_ERROR(LX("scheduleAlertFailed").d("reason", "could not get current unix time."));
@@ -132,6 +131,7 @@ bool AlertScheduler::scheduleAlert(std::shared_ptr<Alert> alert) {
 
     auto oldAlert = getAlertLocked(alert->getToken());
     if (oldAlert) {
+        ACSDK_DEBUG9(LX("oldAlert").d("token", oldAlert->getToken()));
         // Update the alert schedule.
         return updateAlert(oldAlert, alert->getScheduledTime_ISO_8601());
     }
@@ -209,9 +209,7 @@ bool AlertScheduler::deleteAlert(const std::string& alertToken) {
         return true;
     }
 
-    if (!m_alertStorage->erase(alert)) {
-        ACSDK_ERROR(LX("handleDeleteAlertFailed").m("Could not erase alert from database").d("token", alertToken));
-    }
+    eraseAlert(alert);
 
     m_scheduledAlerts.erase(alert);
     setTimerForNextAlertLocked();
@@ -256,6 +254,7 @@ bool AlertScheduler::deleteAlerts(const std::list<std::string>& tokenList) {
 
     for (auto& alert : alertsToBeRemoved) {
         m_scheduledAlerts.erase(alert);
+        notifyObserver(alert->getToken(), alert->getTypeName(), AlertObserverInterface::State::DELETED);
     }
 
     setTimerForNextAlertLocked();
@@ -346,8 +345,11 @@ void AlertScheduler::clearData(Alert::StopReason reason) {
         m_scheduledAlertTimer.stop();
     }
 
-    m_scheduledAlerts.clear();
+    for (const auto& alert : m_scheduledAlerts) {
+        notifyObserver(alert->getToken(), alert->getTypeName(), AlertObserverInterface::State::DELETED);
+    }
 
+    m_scheduledAlerts.clear();
     m_alertStorage->clearDatabase();
 }
 
@@ -388,19 +390,17 @@ void AlertScheduler::executeOnAlertStateChange(
             break;
 
         case State::STOPPED:
-            m_alertStorage->erase(m_activeAlert);
-            m_activeAlert.reset();
-
             notifyObserver(alertToken, alertType, state, reason);
+            eraseAlert(m_activeAlert);
+            m_activeAlert.reset();
             setTimerForNextAlertLocked();
 
             break;
 
         case State::COMPLETED:
-            m_alertStorage->erase(m_activeAlert);
-            m_activeAlert.reset();
-
             notifyObserver(alertToken, alertType, state, reason);
+            eraseAlert(m_activeAlert);
+            m_activeAlert.reset();
             setTimerForNextAlertLocked();
 
             break;
@@ -430,18 +430,23 @@ void AlertScheduler::executeOnAlertStateChange(
             // Instead, this class generates it to inform higher level observers.
             break;
 
+        case State::DELETED:
+            // An alert should never send this state.
+            // Instead, this class generates it to inform higher level observers.
+            break;
+
         case State::ERROR:
 
             // clear out the alert that had the error, to avoid degenerate repeated alert behavior.
 
             if (m_activeAlert && m_activeAlert->getToken() == alertToken) {
-                m_alertStorage->erase(m_activeAlert);
+                eraseAlert(m_activeAlert);
                 m_activeAlert.reset();
                 setTimerForNextAlertLocked();
             } else {
                 auto alert = getAlertLocked(alertToken);
                 if (alert) {
-                    m_alertStorage->erase(alert);
+                    eraseAlert(alert);
                     m_scheduledAlerts.erase(alert);
                     setTimerForNextAlertLocked();
                 }
@@ -589,6 +594,21 @@ std::list<std::shared_ptr<Alert>> AlertScheduler::getAllAlerts() {
         list.push_back(m_activeAlert);
     }
     return list;
+}
+
+void AlertScheduler::eraseAlert(std::shared_ptr<Alert> alert) {
+    ACSDK_DEBUG9(LX(__func__));
+    if (!alert) {
+        ACSDK_ERROR(LX("eraseAlertFailed").m("alert was nullptr"));
+        return;
+    }
+
+    auto alertToken = alert->getToken();
+    if (!m_alertStorage->erase(alert)) {
+        ACSDK_ERROR(LX(__func__).m("Could not erase alert from database").d("token", alertToken));
+        return;
+    }
+    notifyObserver(alertToken, alert->getTypeName(), AlertObserverInterface::State::DELETED);
 }
 
 }  // namespace alerts

@@ -1,11 +1,12 @@
 set(SampleApp_SOURCES)
-list(APPEND SampleApp_SOURCES 
+list(APPEND SampleApp_SOURCES
     ConnectionObserver.cpp
     ConsolePrinter.cpp
     ConsoleReader.cpp
     GuiRenderer.cpp
     InteractionManager.cpp
     KeywordObserver.cpp
+    LocaleAssetsManager.cpp
     UIManager.cpp
     UserInputManager.cpp
     SampleApplication.cpp
@@ -24,6 +25,11 @@ if (PCC)
     list(APPEND SampleApp_SOURCES PhoneCaller.cpp)
 endif()
 
+if (MCC)
+    list(APPEND SampleApp_SOURCES MeetingClient.cpp)
+    list(APPEND SampleApp_SOURCES CalendarClient.cpp)
+endif()
+
 IF (HAS_EXTERNAL_MEDIA_PLAYER_ADAPTERS)
     file(GLOB_RECURSE SRC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/ExternalMediaAdapterRegistration/*.cpp)
     foreach(myfile ${SRC_FILE})
@@ -33,7 +39,7 @@ ENDIF()
 
 add_executable(SampleApp ${SampleApp_SOURCES})
 
-target_include_directories(SampleApp PUBLIC 
+target_include_directories(SampleApp PUBLIC
     "${SampleApp_SOURCE_DIR}/include"
     "${AudioResources_SOURCE_DIR}/include"
     "${RegistrationManager_SOURCE_DIR}/include"
@@ -45,11 +51,14 @@ target_link_libraries(SampleApp
     CapabilitiesDelegate
     CBLAuthDelegate
     SQLiteStorage
-    ESP
     EqualizerImplementations
     "${PORTAUDIO_LIB_PATH}")
 
 if (PCC)
+    target_link_libraries(SampleApp AVSCommon)
+endif()
+
+if (MCC)
     target_link_libraries(SampleApp AVSCommon)
 endif()
 
@@ -80,6 +89,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         "-framework Carbon")
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     target_link_libraries(SampleApp
-      rt m pthread asound)
+      rt m pthread asound atomic)
 endif()
 

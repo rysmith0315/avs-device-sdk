@@ -44,6 +44,7 @@
 
 #include <CapabilitiesDelegate/CapabilitiesDelegate.h>
 #include <ExternalMediaPlayer/ExternalMediaPlayer.h>
+#include <AVSCommon/Utils/MediaPlayer/PooledMediaPlayerFactory.h>
 
 namespace alexaClientSDK {
 namespace sampleApp {
@@ -190,8 +191,11 @@ private:
     /// The @c MediaPlayer used by @c SpeechSynthesizer.
     std::shared_ptr<ApplicationMediaPlayer> m_speakMediaPlayer;
 
-    /// The @c MediaPlayer used by @c AudioPlayer.
-    std::shared_ptr<ApplicationMediaPlayer> m_audioMediaPlayer;
+    /// The @c MediaPlayerFactory used by @c AudioPlayer.
+    std::unique_ptr<alexaClientSDK::mediaPlayer::PooledMediaPlayerFactory> m_audioMediaPlayerFactory;
+
+    /// The Pool of @c MediaPlayers used by @c AudioPlayer (via @c PooledMediaPlayerFactory)
+    std::vector<std::shared_ptr<ApplicationMediaPlayer>> m_audioMediaPlayerPool;
 
     /// The @c MediaPlayer used by @c Alerts.
     std::shared_ptr<ApplicationMediaPlayer> m_alertsMediaPlayer;
@@ -202,9 +206,17 @@ private:
     /// The @c MediaPlayer used by @c Bluetooth.
     std::shared_ptr<ApplicationMediaPlayer> m_bluetoothMediaPlayer;
 
+    /// The @c MediaPlayer used by @c SystemSoundPlayer.
+    std::shared_ptr<ApplicationMediaPlayer> m_systemSoundMediaPlayer;
+
 #ifdef ENABLE_COMMS_AUDIO_PROXY
     /// The @c MediaPlayer used by @c Comms.
     std::shared_ptr<ApplicationMediaPlayer> m_commsMediaPlayer;
+#endif
+
+#ifdef ENABLE_PCC
+    /// The @c MediaPlayer used by PhoneCallController.
+    std::shared_ptr<ApplicationMediaPlayer> m_phoneMediaPlayer;
 #endif
 
     /// The @c CapabilitiesDelegate used by the client.

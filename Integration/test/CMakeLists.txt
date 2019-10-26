@@ -14,24 +14,41 @@ set(INCLUDE_PATH "${ACL_SOURCE_DIR}/include"
      "${GST_INCLUDE_DIRS}"
      "${AVSCommon_INCLUDE_DIRS}"
      "${AVSCommon_SOURCE_DIR}/SDKInterfaces/test"
+     "${AVSCommon_SOURCE_DIR}/Utils/test"
      "${AudioPlayer_INCLUDE_DIRS}"
      "${AudioResources_INCLUDE_DIRS}"
      "${MediaPlayer_SOURCE_DIR}/include"
      "${PlaybackController_SOURCE_DIR}/include"
-     "${CONTEXTMANAGER_SOURCE_DIR}/include")
+     "${ContextManager_SOURCE_DIR}/include"
+     "${DeviceSettings_SOURCE_DIR}/test")
 
-    set(LINK_PATH ACL ADSL AFML AIP Alerts AudioPlayer AVSSystem CBLAuthDelegate ContextManager Integration gtest gmock KWD PlaybackController SpeechSynthesizer)
+set(LINK_PATH ACL
+        ADSL
+        AFML
+        AIP
+        Alerts
+        AudioPlayer
+        AVSSystem
+        CBLAuthDelegate
+        ContextManager
+        Integration
+        gtest
+        gmock
+        KWD
+        PlaybackController
+        SpeechSynthesizer
+        UtilsCommonTestLib)
 
-    if(KITTAI_KEY_WORD_DETECTOR)
-        SET(LINK_PATH ${LINK_PATH} KITTAI)
-    endif()
-    if(SENSORY_KEY_WORD_DETECTOR)
-        SET(LINK_PATH ${LINK_PATH} SENSORY)
-    endif()
-    if(GSTREAMER_MEDIA_PLAYER)
-        SET(LINK_PATH ${LINK_PATH} MediaPlayer)
-        add_definitions(-DGSTREAMER_MEDIA_PLAYER)
-    endif()
+if(KITTAI_KEY_WORD_DETECTOR)
+    SET(LINK_PATH ${LINK_PATH} KITTAI)
+endif()
+if(SENSORY_KEY_WORD_DETECTOR)
+    SET(LINK_PATH ${LINK_PATH} SENSORY)
+endif()
+if(GSTREAMER_MEDIA_PLAYER)
+    SET(LINK_PATH ${LINK_PATH} MediaPlayer)
+    add_definitions(-DGSTREAMER_MEDIA_PLAYER)
+endif()
 
 # Define a variable for the audio inputs.
 set(INTEGRATION_INPUTS "${Integration_SOURCE_DIR}/inputs")
@@ -72,6 +89,9 @@ if(BUILD_TESTING)
         add_executable(${testName} ${testSourceFile})
         target_include_directories(${testName} PUBLIC "${INCLUDE_PATH}")
         target_link_libraries(${testName} "${LINK_PATH}")
+        if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+            target_link_libraries(${testName} atomic)
+        endif()
         add_test(NAME ${testName}
             COMMAND ${testName} ${SDK_CONFIG_FILE_TARGET} ${INTEGRATION_INPUTS}
             CONFIGURATIONS Integration)

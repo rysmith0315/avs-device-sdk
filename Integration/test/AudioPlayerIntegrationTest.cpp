@@ -33,6 +33,7 @@
 #include <AIP/AudioProvider.h>
 #include <AIP/Initiator.h>
 #include <AudioPlayer/AudioPlayer.h>
+#include <Audio/SystemSoundAudioFactory.h>
 #include <AVSCommon/AVS/Attachment/InProcessAttachmentReader.h>
 #include <AVSCommon/AVS/Attachment/InProcessAttachmentWriter.h>
 #include <AVSCommon/AVS/BlockingPolicy.h>
@@ -40,11 +41,23 @@
 #include <AVSCommon/Utils/LibcurlUtils/HTTPContentFetcherFactory.h>
 #include <AVSCommon/SDKInterfaces/DirectiveHandlerInterface.h>
 #include <AVSCommon/SDKInterfaces/DirectiveHandlerResultInterface.h>
+#include <AVSCommon/SDKInterfaces/MockLocaleAssetsManager.h>
+#include <AVSCommon/Utils/MediaPlayer/PooledMediaPlayerFactory.h>
 #include <AVSCommon/Utils/Logger/LogEntry.h>
+#ifdef GSTREAMER_MEDIA_PLAYER
+#include <MediaPlayer/MediaPlayer.h>
+#else
+#include "Integration/TestMediaPlayer.h"
+#endif
+
 #include <PlaybackController/PlaybackController.h>
 #include <PlaybackController/PlaybackRouter.h>
 #include <SpeechSynthesizer/SpeechSynthesizer.h>
 #include <System/UserInactivityMonitor.h>
+#include <Settings/MockSetting.h>
+#include <Settings/SpeechConfirmationSettingType.h>
+#include <Settings/WakeWordConfirmationSettingType.h>
+#include <SystemSoundPlayer/SystemSoundPlayer.h>
 
 #include "Integration/ACLTestContext.h"
 #include "Integration/ObservableMessageRequest.h"
@@ -52,12 +65,6 @@
 #include "Integration/TestExceptionEncounteredSender.h"
 #include "Integration/TestMessageSender.h"
 #include "Integration/TestSpeechSynthesizerObserver.h"
-
-#ifdef GSTREAMER_MEDIA_PLAYER
-#include "MediaPlayer/MediaPlayer.h"
-#else
-#include "Integration/TestMediaPlayer.h"
-#endif
 
 namespace alexaClientSDK {
 namespace integration {
@@ -79,6 +86,8 @@ using namespace capabilityAgents::playbackController;
 using namespace afml;
 using namespace capabilityAgents::speechSynthesizer;
 using namespace capabilityAgents::system;
+using namespace settings;
+using namespace settings::test;
 #ifdef GSTREAMER_MEDIA_PLAYER
 using namespace mediaPlayer;
 #endif
@@ -326,6 +335,23 @@ protected:
         m_holdToTalkButton = std::make_shared<holdToTalkButton>();
 
         m_userInactivityMonitor = UserInactivityMonitor::create(m_avsConnectionManager, m_exceptionEncounteredSender);
+
+#ifdef GSTREAMER_MEDIA_PLAYER
+        auto systemSoundMediaPlayer =
+            MediaPlayer::create(std::make_shared<avsCommon::utils::libcurlUtils::HTTPContentFetcherFactory>());
+#else
+        auto systemSoundMediaPlayer = std::make_shared<TestMediaPlayer>();
+#endif
+
+        m_systemSoundPlayer = applicationUtilities::systemSoundPlayer::SystemSoundPlayer::create(
+            systemSoundMediaPlayer,
+            std::make_shared<alexaClientSDK::applicationUtilities::resources::audio::SystemSoundAudioFactory>());
+
+        m_mockWakeWordConfirmationSetting =
+            std::make_shared<MockSetting<WakeWordConfirmationSettingType>>(getWakeWordConfirmationDefault());
+        m_mockSpeechConfirmationSetting =
+            std::make_shared<MockSetting<SpeechConfirmationSettingType>>(getSpeechConfirmationDefault());
+
         m_AudioInputProcessor = AudioInputProcessor::create(
             m_directiveSequencer,
             m_avsConnectionManager,
@@ -333,7 +359,11 @@ protected:
             m_focusManager,
             m_dialogUXStateAggregator,
             m_exceptionEncounteredSender,
-            m_userInactivityMonitor);
+            m_userInactivityMonitor,
+            m_systemSoundPlayer,
+            std::make_shared<::testing::NiceMock<sdkInterfaces::test::MockLocaleAssetsManager>>(),
+            m_mockWakeWordConfirmationSetting,
+            m_mockSpeechConfirmationSetting);
         ASSERT_NE(nullptr, m_AudioInputProcessor);
         m_AudioInputProcessor->addObserver(m_dialogUXStateAggregator);
 
@@ -358,9 +388,12 @@ protected:
         m_contentMediaPlayer = std::make_shared<TestMediaPlayer>();
 #endif
 
+        std::vector<std::shared_ptr<MediaPlayerInterface>> players = {m_contentMediaPlayer};
+        auto mockFactory = mediaPlayer::PooledMediaPlayerFactory::create(players);
+
         // Create and register the AudioPlayer.
         m_audioPlayer = capabilityAgents::audioPlayer::AudioPlayer::create(
-            m_contentMediaPlayer,
+            std::move(mockFactory),
             m_avsConnectionManager,
             m_focusManager,
             m_context->getContextManager(),
@@ -529,6 +562,9 @@ protected:
     std::shared_ptr<AudioInputProcessor> m_AudioInputProcessor;
     std::shared_ptr<UserInactivityMonitor> m_userInactivityMonitor;
     std::shared_ptr<capabilityAgents::audioPlayer::AudioPlayer> m_audioPlayer;
+    std::shared_ptr<applicationUtilities::systemSoundPlayer::SystemSoundPlayer> m_systemSoundPlayer;
+    std::shared_ptr<MockSetting<WakeWordConfirmationSettingType>> m_mockWakeWordConfirmationSetting;
+    std::shared_ptr<MockSetting<SpeechConfirmationSettingType>> m_mockSpeechConfirmationSetting;
 
     FocusState m_focusState;
     std::mutex m_mutex;

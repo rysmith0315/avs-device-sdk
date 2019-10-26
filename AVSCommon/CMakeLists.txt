@@ -67,6 +67,7 @@ add_library(AVSCommon SHARED
     Utils/src/Logger/ModuleLogger.cpp
     Utils/src/Logger/ThreadMoniker.cpp
     Utils/src/MacAddressString.cpp
+    Utils/src/MediaPlayer/PooledMediaPlayerFactory.cpp
     Utils/src/Metrics.cpp
     Utils/src/Network/InternetConnectionMonitor.cpp
     Utils/src/RequiresShutdown.cpp
@@ -80,7 +81,8 @@ add_library(AVSCommon SHARED
     Utils/src/TimePoint.cpp
     Utils/src/TimeUtils.cpp
     Utils/src/Timer.cpp
-    Utils/src/UUIDGeneration.cpp)
+    Utils/src/UUIDGeneration.cpp
+    Utils/src/WaitEvent.cpp)
 
 target_include_directories(AVSCommon PUBLIC
     "${AVSCommon_SOURCE_DIR}/AVS/include"
